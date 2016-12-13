@@ -336,6 +336,7 @@ NSString * const GMGridViewCellIdentifier = @"GMGridViewCellIdentifier";
     {
         cell.selected = YES;
         [collectionView selectItemAtIndexPath:indexPath animated:NO scrollPosition:UICollectionViewScrollPositionNone];
+        [self updateCellTitle:cell];
     }
     else
     {
@@ -556,6 +557,9 @@ NSString * const GMGridViewCellIdentifier = @"GMGridViewCellIdentifier";
     
     if ([self.picker.delegate respondsToSelector:@selector(assetsPickerController:didSelectAsset:)])
         [self.picker.delegate assetsPickerController:self.picker didSelectAsset:asset];
+
+    GMGridViewCell *cell = (GMGridViewCell*)[collectionView cellForItemAtIndexPath:indexPath];
+    [self updateCellTitle:cell];
 }
 
 - (BOOL)collectionView:(UICollectionView *)collectionView shouldDeselectItemAtIndexPath:(NSIndexPath *)indexPath
@@ -579,6 +583,12 @@ NSString * const GMGridViewCellIdentifier = @"GMGridViewCellIdentifier";
     
     if ([self.picker.delegate respondsToSelector:@selector(assetsPickerController:didDeselectAsset:)])
         [self.picker.delegate assetsPickerController:self.picker didDeselectAsset:asset];
+
+    for(int i = 0; i < [collectionView.visibleCells count]; i++)
+    {
+        GMGridViewCell *cell = (GMGridViewCell*)[collectionView.visibleCells objectAtIndex:i];
+        [self updateCellTitle:cell];
+    }
 }
 
 - (BOOL)collectionView:(UICollectionView *)collectionView shouldHighlightItemAtIndexPath:(NSIndexPath *)indexPath
@@ -761,5 +771,13 @@ NSString * const GMGridViewCellIdentifier = @"GMGridViewCellIdentifier";
     return assets;
 }
 
+-(void)updateCellTitle:(GMGridViewCell*) cell
+{
+    NSUInteger index = [self.picker.selectedAssets indexOfObject:cell.asset];
+    if(index != NSNotFound)
+    {
+        [cell.selectedButton setTitle:[NSString stringWithFormat:@"%lu", (unsigned long)index + 1] forState:UIControlStateSelected];
+    }
+}
 
 @end
