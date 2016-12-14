@@ -3,25 +3,25 @@
  *
  * All rights reserved.
  *
- * Redistribution and use in source and binary forms, with or without 
+ * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following  conditions are met:
  *
- *   Redistributions of source code must retain the above copyright notice, 
+ *   Redistributions of source code must retain the above copyright notice,
  *      this list of conditions and the following disclaimer.
- *   Redistributions in binary form must reproduce the above copyright notice, 
- *      this list of conditions and the following  disclaimer in the 
+ *   Redistributions in binary form must reproduce the above copyright notice,
+ *      this list of conditions and the following  disclaimer in the
  *      documentation and/or other materials provided with the distribution.
  *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING,  BUT NOT LIMITED TO, THE 
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE 
- * ARE DISCLAIMED. IN NO EVENT  SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE 
- * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR 
- * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF 
- * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR  BUSINESS 
- * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
- * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDIN G NEGLIGENCE OR OTHERWISE) 
- * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE 
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING,  BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT  SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR  BUSINESS
+ * INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDIN G NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH  DAMAGE
  *
  * Code modified by Andrew Stephan for Sync OnSet
@@ -37,13 +37,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
 
-import com.synconset.FakeR;
 import android.app.AlertDialog;
 import android.app.LoaderManager;
 import android.app.ProgressDialog;
@@ -77,6 +72,7 @@ import android.widget.AdapterView.OnItemClickListener;
 import android.widget.BaseAdapter;
 import android.widget.GridView;
 import android.widget.ImageView;
+import android.widget.TextView;
 
 public class MultiImageChooserActivity extends AppCompatActivity implements
         OnItemClickListener,
@@ -100,7 +96,8 @@ public class MultiImageChooserActivity extends AppCompatActivity implements
     private static final int CURSORLOADER_THUMBS = 0;
     private static final int CURSORLOADER_REAL = 1;
 
-    private Map<String, Integer> fileNames = new HashMap<String, Integer>();
+    //private Map<String, Integer> fileNames = new HashMap<String, Integer>();
+    private ArrayList<ImageData> files = new ArrayList<ImageData>();
 
     private SparseBooleanArray checkStatus = new SparseBooleanArray();
 
@@ -128,7 +125,7 @@ public class MultiImageChooserActivity extends AppCompatActivity implements
         super.onCreate(savedInstanceState);
         fakeR = new FakeR(this);
         setContentView(fakeR.getId("layout", "multiselectorgrid"));
-        fileNames.clear();
+        files.clear();
 
         maxImages = getIntent().getIntExtra(MAX_IMAGES_KEY, NOLIMIT);
         desiredWidth = getIntent().getIntExtra(WIDTH_KEY, 0);
@@ -170,7 +167,7 @@ public class MultiImageChooserActivity extends AppCompatActivity implements
             }
         });
 
-        ia = new ImageAdapter();
+        ia = new ImageAdapter(this);
         gridView.setAdapter(ia);
 
         LoaderManager.enableDebugLogging(false);
@@ -197,8 +194,8 @@ public class MultiImageChooserActivity extends AppCompatActivity implements
         if (maxImages == 0 && isChecked) {
             isChecked = false;
             new AlertDialog.Builder(this)
-                    .setTitle("Maximum " + maxImageCount + " Photos")
-                    .setMessage("You can only select " + maxImageCount + " photos at a time.")
+                    .setTitle("Højst " + maxImageCount + " billeder")
+                    .setMessage("Du må højst vælge " + maxImageCount + " billeder.")
                     .setPositiveButton("OK", new DialogInterface.OnClickListener() {
                         public void onClick(DialogInterface dialog, int which) {
                             dialog.cancel();
@@ -208,35 +205,38 @@ public class MultiImageChooserActivity extends AppCompatActivity implements
                     .show();
 
         } else if (isChecked) {
-            fileNames.put(name, rotation);
+            files.add(new ImageData(name, rotation));
 
             if (maxImageCount == 1) {
                 selectClicked();
 
             } else {
                 maxImages--;
-                ImageView imageView = (ImageView) view;
+                ViewHolder viewHolder = (ViewHolder) view.getTag();
 
                 if (android.os.Build.VERSION.SDK_INT >= 16) {
-                  imageView.setImageAlpha(128);
+                    viewHolder.thumbImageView.setImageAlpha(128);
                 } else {
-                  imageView.setAlpha(128);
+                    viewHolder.thumbImageView.setAlpha(128);
                 }
 
-                view.setBackgroundColor(selectedColor);
+                viewHolder.thumbImageView.setBackgroundColor(selectedColor);
+                viewHolder.positionTextView.setText(String.format("%d", files.size()));
             }
         } else {
-            fileNames.remove(name);
+            while(files.remove(new ImageData(name, rotation)));
             maxImages++;
-            ImageView imageView = (ImageView) view;
+            ViewHolder viewHolder = (ViewHolder) view.getTag();
 
             if (android.os.Build.VERSION.SDK_INT >= 16) {
-                imageView.setImageAlpha(255);
+                viewHolder.thumbImageView.setImageAlpha(255);
             } else {
-                imageView.setAlpha(255);
+                viewHolder.thumbImageView.setAlpha(255);
             }
 
-            view.setBackgroundColor(Color.TRANSPARENT);
+            viewHolder.thumbImageView.setBackgroundColor(Color.TRANSPARENT);
+            viewHolder.positionTextView.setText("");
+            ia.notifyDataSetChanged();
         }
 
         checkStatus.put(position, isChecked);
@@ -314,13 +314,14 @@ public class MultiImageChooserActivity extends AppCompatActivity implements
         abDoneView.setEnabled(false);
         progress.show();
 
-        if (fileNames.isEmpty()) {
+        if (files.isEmpty()) {
             setResult(RESULT_CANCELED);
             progress.dismiss();
             finish();
         } else {
 	        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_NOSENSOR); //prevent orientation changes during processing
-            new ResizeImagesTask().execute(fileNames.entrySet());
+
+            new ResizeImagesTask().execute(files);
         }
     }
 
@@ -330,7 +331,7 @@ public class MultiImageChooserActivity extends AppCompatActivity implements
      ********************/
     private void updateAcceptButton() {
         if (abDoneView != null) {
-            abDoneView.setEnabled(fileNames.size() != 0);
+            abDoneView.setEnabled(files.size() != 0);
         }
     }
 
@@ -426,19 +427,24 @@ public class MultiImageChooserActivity extends AppCompatActivity implements
     /*********************
     * Nested Classes
     ********************/
-    private class SquareImageView extends ImageView {
-        public SquareImageView(Context context) {
-			super(context);
-		}
 
-        @Override
-        public void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-            super.onMeasure(widthMeasureSpec, widthMeasureSpec);
+    private class ViewHolder {
+        public TextView positionTextView;
+        public ImageView thumbImageView;
+
+        public ViewHolder(View container) {
+            thumbImageView = (ImageView) container.findViewById(fakeR.getId("id", "thumbImageView"));// R.id.thumbImageView);
+            positionTextView = (TextView) container.findViewById(fakeR.getId("id", "positionTextView")); // R.id.positionTextView);
+
         }
     }
 
-
     private class ImageAdapter extends BaseAdapter {
+
+        private final LayoutInflater inflater;
+        public ImageAdapter(Context context) {
+            inflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+        }
 
         public int getCount() {
             if (imagecursor != null) {
@@ -459,21 +465,35 @@ public class MultiImageChooserActivity extends AppCompatActivity implements
         // create a new ImageView for each item referenced by the Adapter
         public View getView(int position, View convertView, ViewGroup parent) {
 
+            ViewHolder viewHolder = null;
             if (convertView == null) {
-                ImageView temp = new SquareImageView(MultiImageChooserActivity.this);
-                temp.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                convertView = temp;
+                convertView = inflater.inflate(fakeR.getId("layout", "image_picker_cell"), null);
+                viewHolder = new ViewHolder(convertView);
+                viewHolder.thumbImageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+//                ViewGroup.LayoutParams layoutParams = viewHolder.thumbImageView.getLayoutParams();
+//                layoutParams.height = colWidth;
+//                layoutParams.width = colWidth;
+//                viewHolder.thumbImageView.setLayoutParams(layoutParams);
+                convertView.setTag(viewHolder);
+            } else {
+                viewHolder = (ViewHolder)convertView.getTag();
             }
 
-            ImageView imageView = (ImageView) convertView;
-            imageView.setImageBitmap(null);
+//            if (convertView == null) {
+//                ImageView temp = new SquareImageView(MultiImageChooserActivity.this);
+//                temp.setScaleType(ImageView.ScaleType.CENTER_CROP);
+//                convertView = temp;
+//            }
+
+            //ImageView imageView = (ImageView) convertView;
+            viewHolder.thumbImageView.setImageBitmap(null);
 
             if (!imagecursor.moveToPosition(position)) {
-                return imageView;
+                return convertView;
             }
 
             if (image_column_index == -1) {
-                return imageView;
+                return convertView;
             }
 
             final int id = imagecursor.getInt(image_column_index);
@@ -481,113 +501,44 @@ public class MultiImageChooserActivity extends AppCompatActivity implements
 
             if (isChecked(position)) {
                 if (android.os.Build.VERSION.SDK_INT >= 16) {
-                  imageView.setImageAlpha(128);
+                    viewHolder.thumbImageView.setImageAlpha(128);
                 } else {
-                  imageView.setAlpha(128);
+                    viewHolder.thumbImageView.setAlpha(128);
                 }
 
-                imageView.setBackgroundColor(selectedColor);
+                viewHolder.thumbImageView.setBackgroundColor(selectedColor);
+
+                viewHolder.positionTextView.setText(String.format("%d", files.indexOf(new ImageData(getImageName(position), rotate)) + 1));
 
             } else {
                 if (android.os.Build.VERSION.SDK_INT >= 16) {
-                  imageView.setImageAlpha(255);
+                    viewHolder.thumbImageView.setImageAlpha(255);
                 } else {
-                  imageView.setAlpha(255);
+                    viewHolder.thumbImageView.setAlpha(255);
                 }
-                imageView.setBackgroundColor(Color.TRANSPARENT);
+                viewHolder.thumbImageView.setBackgroundColor(Color.TRANSPARENT);
+                viewHolder.positionTextView.setText("");
             }
 
             if (shouldRequestThumb) {
-                fetcher.fetch(id, imageView, colWidth, rotate);
+                fetcher.fetch(id, viewHolder.thumbImageView, colWidth, rotate);
             }
 
-            return imageView;
+            return convertView;
         }
     }
 
-    private class ResizeImagesTask extends AsyncTask<Set<Entry<String, Integer>>, Void, ArrayList<String>> {
+    private class ResizeImagesTask extends AsyncTask<ArrayList<ImageData>, Void, ArrayList<String>> {
         private Exception asyncTaskError = null;
 
         @Override
-        protected ArrayList<String> doInBackground(Set<Entry<String, Integer>>... fileSets) {
-            Set<Entry<String, Integer>> fileNames = fileSets[0];
+        protected ArrayList<String> doInBackground(ArrayList<ImageData>... fileSets) {
+            ArrayList<ImageData> files = fileSets[0];
             ArrayList<String> al = new ArrayList<String>();
-            try {
-                Iterator<Entry<String, Integer>> i = fileNames.iterator();
-                Bitmap bmp;
-                while (i.hasNext()) {
-                    Entry<String, Integer> imageInfo = i.next();
-                    File file = new File(imageInfo.getKey());
-                    int rotate = imageInfo.getValue();
-                    BitmapFactory.Options options = new BitmapFactory.Options();
-                    options.inSampleSize = 1;
-                    options.inJustDecodeBounds = true;
-                    BitmapFactory.decodeFile(file.getAbsolutePath(), options);
-                    int width = options.outWidth;
-                    int height = options.outHeight;
-                    float scale = calculateScale(width, height);
-
-                    if (scale < 1) {
-                        int finalWidth = (int)(width * scale);
-                        int finalHeight = (int)(height * scale);
-                        int inSampleSize = calculateInSampleSize(options, finalWidth, finalHeight);
-                        options = new BitmapFactory.Options();
-                        options.inSampleSize = inSampleSize;
-
-                        try {
-                            bmp = this.tryToGetBitmap(file, options, rotate, true);
-                        } catch (OutOfMemoryError e) {
-                            options.inSampleSize = calculateNextSampleSize(options.inSampleSize);
-                            try {
-                                bmp = this.tryToGetBitmap(file, options, rotate, false);
-                            } catch (OutOfMemoryError e2) {
-                                throw new IOException("Unable to load image into memory.");
-                            }
-                        }
-                    } else {
-                        try {
-                            bmp = this.tryToGetBitmap(file, null, rotate, false);
-                        } catch(OutOfMemoryError e) {
-                            options = new BitmapFactory.Options();
-                            options.inSampleSize = 2;
-
-                            try {
-                                bmp = this.tryToGetBitmap(file, options, rotate, false);
-                            } catch(OutOfMemoryError e2) {
-                                options = new BitmapFactory.Options();
-                                options.inSampleSize = 4;
-
-                                try {
-                                    bmp = this.tryToGetBitmap(file, options, rotate, false);
-                                } catch (OutOfMemoryError e3) {
-                                    throw new IOException("Unable to load image into memory.");
-                                }
-                            }
-                        }
-                    }
-
-                    if (outputType == OutputType.FILE_URI) {
-                        file = storeImage(bmp, file.getName());
-                        al.add(Uri.fromFile(file).toString());
-
-                    } else if (outputType == OutputType.BASE64_STRING) {
-                        al.add(getBase64OfImage(bmp));
-                    }
-                }
-                return al;
-            } catch (IOException e) {
-                try {
-                    asyncTaskError = e;
-                    for (int i = 0; i < al.size(); i++) {
-                        URI uri = new URI(al.get(i));
-                        File file = new File(uri);
-                        file.delete();
-                    }
-                } catch (Exception ignore) {
-                }
-
-                return new ArrayList<String>();
+            for(ImageData data : files) {
+                al.add(data.fileName);
             }
+            return al;
         }
 
         @Override
@@ -691,6 +642,25 @@ public class MultiImageChooserActivity extends AppCompatActivity implements
             bm.compress(Bitmap.CompressFormat.JPEG, quality, byteArrayOutputStream);
             byte[] byteArray = byteArrayOutputStream.toByteArray();
             return Base64.encodeToString(byteArray, Base64.DEFAULT);
+        }
+    }
+
+    private class ImageData {
+        public String fileName;
+        public int rotation;
+
+        public ImageData(String fileName, int rotation) {
+            this.fileName = fileName;
+            this.rotation = rotation;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if(o == null) return false;
+            if(o instanceof ImageData){
+                return ((ImageData)o).fileName.equals(this.fileName);
+            }
+            return super.equals(o);
         }
     }
 
