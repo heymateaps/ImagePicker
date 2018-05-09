@@ -8,6 +8,10 @@
         "ios"
       ]
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/heymateaps/ImagePicker"
+  },
   "cordova_name": "ImagePicker",
   "description": "This plugin allows selection of multiple images from the camera roll / gallery in a phonegap app",
   "license": "MIT",
